@@ -29,6 +29,27 @@ impl Database {
         Ok(Self { conn })
     }
 
+    /// 用于测试的构造函数，使用内存数据库
+    #[cfg(test)]
+    pub fn new_in_memory() -> Result<Self> {
+        let conn = Connection::open_in_memory()?;
+
+        // 创建表
+        conn.execute(
+            "CREATE TABLE IF NOT EXISTS items (
+                id INTEGER PRIMARY KEY,
+                name TEXT NOT NULL,
+                start_date TEXT NOT NULL,
+                discard_date TEXT,
+                price REAL NOT NULL,
+                currency TEXT NOT NULL
+            )",
+            [],
+        )?;
+
+        Ok(Self { conn })
+    }
+
     fn get_db_path() -> Result<PathBuf> {
         let data_dir = dirs::data_dir().ok_or_else(|| {
             rusqlite::Error::InvalidPath("Cannot determine data directory".to_string().into())
@@ -109,6 +130,129 @@ impl Database {
     pub fn delete_item(&self, id: i64) -> Result<()> {
         self.conn
             .execute("DELETE FROM items WHERE id = ?1", params![id])?;
+        Ok(())
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use chrono::NaiveDate;
+
+    #[test]
+    fn test_add_and_get_items() -> Result<()> {
+        let db = Database::new_in_memory()?;
+
+        let item = Item::new(
+            "Test Item".to_string(),
+            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+            None,
+            1000.0,
+            "CNY".to_string(),
+        );
+
+        // 添加物品
+        db.add_item(&item)?;
+
+        // 获取所有物品
+        let items = db.get_all_items()?;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].name, "Test Item");
+        assert_eq!(items[0].price, 1000.0);
+        assert_eq!(items[0].currency, "CNY");
+        assert!(items[0].id.is_some());
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_add_item_with_discard_date() -> Result<()> {
+        let db = Database::new_in_memory()?;
+
+        let item = Item::new(
+            "Test Item".to_string(),
+            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+            Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()),
+            1000.0,
+            "CNY".to_string(),
+        );
+
+        db.add_item(&item)?;
+        let items = db.get_all_items()?;
+
+        assert_eq!(items.len(), 1);
+        assert_eq!(items[0].discard_date, Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_update_item() -> Result<()> {
+        let db = Database::new_in_memory()?;
+
+        let mut item = Item::new(
+            "Test Item".to_string(),
+            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+            None,
+            1000.0,
+            "CNY".to_string(),
+        );
+
+        // 添加物品
+        db.add_item(&item)?;
+        let items = db.get_all_items()?;
+        let id = items[0].id.unwrap();
+
+        // 更新物品
+        item.id = Some(id);
+        item.name = "Updated Item".to_string();
+        item.price = 2000.0;
+
+        db.update_item(&item)?;
+
+        // 验证更新
+        let items = db.get_all_items()?;
+        assert_eq!(items[0].name, "Updated Item");
+        assert_eq!(items[0].price, 2000.0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_delete_item() -> Result<()> {
+        let db = Database::new_in_memory()?;
+
+        let item = Item::new(
+            "Test Item".to_string(),
+            NaiveDate::from_ymd_opt(2020, 1, 1).unwrap(),
+            None,
+            1000.0,
+            "CNY".to_string(),
+        );
+
+        // 添加物品
+        db.add_item(&item)?;
+        let items = db.get_all_items()?;
+        let id = items[0].id.unwrap();
+
+        // 删除物品
+        db.delete_item(id)?;
+
+        // 验证删除
+        let items = db.get_all_items()?;
+        assert_eq!(items.len(), 0);
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_get_all_items_empty() -> Result<()> {
+        let db = Database::new_in_memory()?;
+
+        let items = db.get_all_items()?;
+        assert_eq!(items.len(), 0);
+
         Ok(())
     }
 }
