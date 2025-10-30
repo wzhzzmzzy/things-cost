@@ -56,7 +56,8 @@ impl Database {
         })?;
 
         let app_dir = data_dir.join("things-cost");
-        std::fs::create_dir_all(&app_dir).map_err(|e| rusqlite::Error::InvalidPath(e.to_string().into()))?;
+        std::fs::create_dir_all(&app_dir)
+            .map_err(|e| rusqlite::Error::InvalidPath(e.to_string().into()))?;
 
         Ok(app_dir.join("data.db"))
     }
@@ -182,7 +183,10 @@ mod tests {
         let items = db.get_all_items()?;
 
         assert_eq!(items.len(), 1);
-        assert_eq!(items[0].discard_date, Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()));
+        assert_eq!(
+            items[0].discard_date,
+            Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap())
+        );
 
         Ok(())
     }
@@ -256,4 +260,3 @@ mod tests {
         Ok(())
     }
 }
-

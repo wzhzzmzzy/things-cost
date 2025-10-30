@@ -290,7 +290,10 @@ mod tests {
         let items = handler.service.get_all_items()?;
         assert_eq!(items.len(), 1);
         assert_eq!(items[0].name, "Test Item");
-        assert_eq!(items[0].discard_date, Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()));
+        assert_eq!(
+            items[0].discard_date,
+            Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap())
+        );
 
         Ok(())
     }
@@ -424,4 +427,3 @@ mod tests {
         assert!(result.is_err());
     }
 }
-

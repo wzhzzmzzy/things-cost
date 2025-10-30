@@ -1,4 +1,4 @@
-pub mod models;
-pub mod database;
-pub mod services;
 pub mod cli;
+pub mod database;
+pub mod models;
+pub mod services;
