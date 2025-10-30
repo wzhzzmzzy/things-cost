@@ -9,6 +9,7 @@ pub struct Item {
     pub discard_date: Option<NaiveDate>,
     pub price: f64,
     pub currency: String,
+    pub selling_price: Option<f64>,
 }
 
 impl Item {
@@ -26,6 +27,7 @@ impl Item {
             discard_date,
             price,
             currency,
+            selling_price: None,
         }
     }
 
@@ -34,10 +36,16 @@ impl Item {
         let end_date = self.discard_date.unwrap_or(today);
         let days = (end_date - self.start_date).num_days() as f64;
 
+        // 如果有卖出价格，则使用购买价格减去卖出价格
+        let effective_price = match self.selling_price {
+            Some(selling_price) => self.price - selling_price,
+            None => self.price,
+        };
+
         if days <= 0.0 {
-            self.price
+            effective_price
         } else {
-            self.price / days
+            effective_price / days
         }
     }
 
@@ -69,6 +77,7 @@ mod tests {
         assert_eq!(item.price, 1000.0);
         assert_eq!(item.currency, "CNY");
         assert_eq!(item.id, None);
+        assert_eq!(item.selling_price, None);
     }
 
     #[test]
@@ -155,5 +164,30 @@ mod tests {
         assert_eq!(item_with_discard.total_days(today), 9);
         // 没有弃用日期的应该使用今天
         assert_eq!(item_without_discard.total_days(today), 14);
+    }
+
+    #[test]
+    fn test_daily_cost_with_selling_price() {
+        let start_date = NaiveDate::from_ymd_opt(2020, 1, 1).unwrap();
+        let discard_date = NaiveDate::from_ymd_opt(2022, 1, 1).unwrap();
+        let today = NaiveDate::from_ymd_opt(2023, 1, 1).unwrap();
+
+        let mut item = Item::new(
+            "Test Item".to_string(),
+            start_date,
+            Some(discard_date),
+            3000.0,
+            "CNY".to_string(),
+        );
+
+        // 没有卖出价格的情况
+        let expected_days = 731.0; // 2020-2022 是闰年+平年
+        let expected_cost = 3000.0 / expected_days;
+        assert!((item.daily_cost(today) - expected_cost).abs() < 0.0001);
+
+        // 有卖出价格的情况
+        item.selling_price = Some(1000.0);
+        let expected_cost_with_selling = (3000.0 - 1000.0) / expected_days;
+        assert!((item.daily_cost(today) - expected_cost_with_selling).abs() < 0.0001);
     }
 }
