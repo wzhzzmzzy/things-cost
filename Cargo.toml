@@ -1,0 +1,12 @@
+[package]
+name = "things-cost"
+version = "0.1.0"
+edition = "2024"
+
+[dependencies]
+rusqlite = "0.31"
+chrono = { version = "0.4", features = ["serde"] }
+clap = { version = "4.4", features = ["derive"] }
+tabled = "0.14"
+dirs = "5.0"
+serde = { version = "1.0", features = ["derive"] }
