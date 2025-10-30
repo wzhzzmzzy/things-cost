@@ -1,6 +1,6 @@
 [package]
 name = "things-cost"
-version = "0.1.0"
+version = "0.1.2"
 edition = "2024"
 description = "物品日均花费统计工具"
 authors = ["Your Name <your.email@example.com>"]
