@@ -51,7 +51,8 @@ jobs:
         run: chmod +x target/release/things-cost
 
 
-      - name: Create zip archive
+      - name: Create zip archive (Linux/macOS)
+        if: matrix.os != 'windows-latest'
         run: |
           if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
             zip -j things-cost-linux-x86_64.zip target/release/things-cost
@@ -59,9 +60,13 @@ jobs:
             zip -j things-cost-macos-x86_64.zip target/release/things-cost
           elif [ "${{ matrix.os }}" = "macos-latest" ] && [ "${{ matrix.arch }}" = "aarch64" ]; then
             zip -j things-cost-macos-aarch64.zip target/release/things-cost
-          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
-            zip -j things-cost-windows-x86_64.zip target/release/things-cost.exe
           fi
+
+      - name: Create zip archive (Windows)
+        if: matrix.os == 'windows-latest'
+        shell: pwsh
+        run: |
+          Compress-Archive -Path "target/release/things-cost.exe" -DestinationPath "things-cost-windows-x86_64.zip" -Force
 
       - name: Upload artifact
         uses: actions/upload-artifact@v4
