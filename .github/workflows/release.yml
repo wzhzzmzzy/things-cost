@@ -36,6 +36,10 @@ jobs:
       - name: Build
         run: cargo build --release
 
+      - name: Make executable (Linux/macOS)
+        if: matrix.os != 'windows-latest'
+        run: chmod +x target/release/things-cost
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
@@ -61,8 +65,17 @@ jobs:
       - name: List downloaded artifacts
         run: find artifacts/ -type f
 
+      - name: Check file permissions and existence
+        run: |
+          ls -la artifacts/binary-ubuntu-latest/things-cost
+          ls -la artifacts/binary-macos-latest/things-cost
+          ls -la artifacts/binary-windows-latest/things-cost.exe
+          file artifacts/binary-ubuntu-latest/things-cost
+          file artifacts/binary-macos-latest/things-cost
+          file artifacts/binary-windows-latest/things-cost.exe
+
       - name: Create Release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v2
         with:
           tag_name: ${{ github.ref_name }}
           name: Release ${{ github.ref_name }}
