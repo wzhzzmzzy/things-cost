@@ -11,10 +11,20 @@ env:
 jobs:
   build:
     name: Build
-    runs-on: ${{ matrix.os }}
+    runs-on: ${{ matrix.runner || matrix.os }}
     strategy:
       matrix:
-        os: [ubuntu-latest, macos-latest, windows-latest]
+        include:
+          - os: ubuntu-latest
+            arch: x86_64
+          - os: macos-latest
+            arch: x86_64
+            runner: macos-latest
+          - os: macos-latest
+            arch: aarch64
+            runner: macos-latest
+          - os: windows-latest
+            arch: x86_64
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -29,9 +39,9 @@ jobs:
             ~/.cargo/registry
             ~/.cargo/git
             target
-          key: ${{ runner.os }}-cargo-${{ hashFiles('**/Cargo.lock') }}
+          key: ${{ runner.os }}-${{ matrix.arch }}-cargo-${{ hashFiles('**/Cargo.lock') }}
           restore-keys: |
-            ${{ runner.os }}-cargo-
+            ${{ runner.os }}-${{ matrix.arch }}-cargo-
 
       - name: Build
         run: cargo build --release
@@ -40,11 +50,28 @@ jobs:
         if: matrix.os != 'windows-latest'
         run: chmod +x target/release/things-cost
 
+
+      - name: Create zip archive
+        run: |
+          if [ "${{ matrix.os }}" = "ubuntu-latest" ]; then
+            zip -j things-cost-linux-x86_64.zip target/release/things-cost
+          elif [ "${{ matrix.os }}" = "macos-latest" ] && [ "${{ matrix.arch }}" = "x86_64" ]; then
+            zip -j things-cost-macos-x86_64.zip target/release/things-cost
+          elif [ "${{ matrix.os }}" = "macos-latest" ] && [ "${{ matrix.arch }}" = "aarch64" ]; then
+            zip -j things-cost-macos-aarch64.zip target/release/things-cost
+          elif [ "${{ matrix.os }}" = "windows-latest" ]; then
+            zip -j things-cost-windows-x86_64.zip target/release/things-cost.exe
+          fi
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
-          name: binary-${{ matrix.os }}
-          path: target/release/things-cost${{ matrix.os == 'windows-latest' && '.exe' || '' }}
+          name: binary-${{ matrix.os }}-${{ matrix.arch }}
+          path: |
+            ${{ matrix.os == 'ubuntu-latest' && 'things-cost-linux-x86_64.zip' || '' }}
+            ${{ matrix.os == 'macos-latest' && matrix.arch == 'x86_64' && 'things-cost-macos-x86_64.zip' || '' }}
+            ${{ matrix.os == 'macos-latest' && matrix.arch == 'aarch64' && 'things-cost-macos-aarch64.zip' || '' }}
+            ${{ matrix.os == 'windows-latest' && 'things-cost-windows-x86_64.zip' || '' }}
           retention-days: 5
 
   release:
@@ -65,15 +92,6 @@ jobs:
       - name: List downloaded artifacts
         run: find artifacts/ -type f
 
-      - name: Check file permissions and existence
-        run: |
-          ls -la artifacts/binary-ubuntu-latest/things-cost
-          ls -la artifacts/binary-macos-latest/things-cost
-          ls -la artifacts/binary-windows-latest/things-cost.exe
-          file artifacts/binary-ubuntu-latest/things-cost
-          file artifacts/binary-macos-latest/things-cost
-          file artifacts/binary-windows-latest/things-cost.exe
-
       - name: Create Release
         uses: softprops/action-gh-release@v2
         with:
@@ -82,13 +100,22 @@ jobs:
           body: |
             Automated release for ${{ github.ref_name }}
 
-            ## Binaries
-            - Linux: `things-cost`
-            - macOS: `things-cost`
-            - Windows: `things-cost.exe`
+            ## Downloads
+            - Linux x86_64: `things-cost-linux-x86_64.zip`
+            - macOS Intel (x86_64): `things-cost-macos-x86_64.zip`
+            - macOS Apple Silicon (aarch64): `things-cost-macos-aarch64.zip`
+            - Windows x86_64: `things-cost-windows-x86_64.zip`
+
+            ## macOS Installation
+
+            - Download macOS binary zip
+            - Run `xattr -c ./things-cost-macos-<your_arch>.zip`
+            - Extract zip
+            - Run `./things-cost`
           files: |
-            artifacts/binary-ubuntu-latest/things-cost
-            artifacts/binary-macos-latest/things-cost
-            artifacts/binary-windows-latest/things-cost.exe
+            artifacts/binary-ubuntu-latest-x86_64/things-cost-linux-x86_64.zip
+            artifacts/binary-macos-latest-x86_64/things-cost-macos-x86_64.zip
+            artifacts/binary-macos-latest-aarch64/things-cost-macos-aarch64.zip
+            artifacts/binary-windows-latest-x86_64/things-cost-windows-x86_64.zip
           draft: false
           prerelease: false
