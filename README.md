@@ -73,7 +73,20 @@ things-cost list
 ### 更新物品信息
 
 ```bash
-things-cost update 1 --name "iPhone 12 Pro" --price 3500
+# 更新名称
+things-cost update name 1 "iPhone 12 Pro"
+
+# 更新价格
+things-cost update price 1 3500
+
+# 更新起始日期
+things-cost update start_date 1 "2021-01-01"
+
+# 更新弃用日期
+things-cost update discard_date 1 "2023-12-31"
+
+# 更新币种
+things-cost update currency 1 "USD"
 ```
 
 ### 删除物品
@@ -82,12 +95,25 @@ things-cost update 1 --name "iPhone 12 Pro" --price 3500
 things-cost delete 1
 ```
 
+### 弃用物品
+
+```bash
+things-cost discard 1 2023-12-31
+```
+
 ## 示例
 
 ```bash
 # 添加几个物品
 things-cost add "MacBook Pro" 2021-01-01 12000 CNY
-things-cost add "iPhone" 2020-10-01 3000 CNY 2023-12-31
+things-cost add "iPhone" 2020-10-01 3000 CNY
+
+# 更新物品信息
+things-cost update name 2 "iPhone 12"
+things-cost update price 2 3500
+
+# 弃用一个物品
+things-cost discard 2 2023-12-31
 
 # 查看统计
 things-cost list

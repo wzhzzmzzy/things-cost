@@ -33,23 +33,24 @@ pub enum Commands {
     List,
     /// 更新物品信息
     Update {
+        /// 要更新的字段
+        field: String,
         /// 物品 ID
         id: i64,
-        /// 物品名称
-        name: Option<String>,
-        /// 起始日期 (YYYY-MM-DD)
-        start_date: Option<String>,
-        /// 弃用日期 (YYYY-MM-DD)
-        discard_date: Option<String>,
-        /// 价格
-        price: Option<f64>,
-        /// 币种
-        currency: Option<String>,
+        /// 新值
+        value: String,
     },
     /// 删除物品
     Delete {
         /// 物品 ID
         id: i64,
+    },
+    /// 弃用物品
+    Discard {
+        /// 物品 ID
+        id: i64,
+        /// 弃用日期 (YYYY-MM-DD)
+        discard_date: String,
     },
 }
 
@@ -97,15 +98,9 @@ impl CliHandler {
                 discard_date,
             } => self.handle_add(name, start_date, price, currency, discard_date),
             Commands::List => self.handle_list(),
-            Commands::Update {
-                id,
-                name,
-                start_date,
-                discard_date,
-                price,
-                currency,
-            } => self.handle_update(id, name, start_date, discard_date, price, currency),
+            Commands::Update { field, id, value } => self.handle_update(field, id, value),
             Commands::Delete { id } => self.handle_delete(id),
+            Commands::Discard { id, discard_date } => self.handle_discard(id, discard_date),
         }
     }
 
@@ -176,43 +171,53 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_update(
-        &self,
-        id: i64,
-        name: Option<String>,
-        start_date: Option<String>,
-        discard_date: Option<String>,
-        price: Option<f64>,
-        currency: Option<String>,
-    ) -> Result<()> {
+    fn handle_update(&self, field: String, id: i64, value: String) -> Result<()> {
         let items = self.service.get_all_items()?;
         let mut item_to_update = items
             .into_iter()
             .find(|item| item.id == Some(id))
             .ok_or_else(|| rusqlite::Error::InvalidParameterName("物品不存在".to_string()))?;
 
-        if let Some(name) = name {
-            item_to_update.name = name;
-        }
+        match field.to_lowercase().as_str() {
+            "name" => {
+                item_to_update.name = value;
+            }
+            "start_date" => {
+                item_to_update.start_date = NaiveDate::parse_from_str(&value, "%Y-%m-%d")
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
+            }
+            "discard_date" => {
+                let parsed_date = NaiveDate::parse_from_str(&value, "%Y-%m-%d")
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
 
-        if let Some(start_date) = start_date {
-            item_to_update.start_date = NaiveDate::parse_from_str(&start_date, "%Y-%m-%d")
-                .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
-        }
+                // 验证弃用日期不能早于起始日期
+                if parsed_date < item_to_update.start_date {
+                    return Err(rusqlite::Error::InvalidParameterName(
+                        "弃用日期不能早于起始日期".to_string(),
+                    ));
+                }
 
-        if let Some(discard_date) = discard_date {
-            item_to_update.discard_date = Some(
-                NaiveDate::parse_from_str(&discard_date, "%Y-%m-%d")
-                    .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?,
-            );
-        }
-
-        if let Some(price) = price {
-            item_to_update.price = price;
-        }
-
-        if let Some(currency) = currency {
-            item_to_update.currency = currency;
+                item_to_update.discard_date = Some(parsed_date);
+            }
+            "price" => {
+                let price = value
+                    .parse::<f64>()
+                    .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
+                if price <= 0.0 {
+                    return Err(rusqlite::Error::InvalidParameterName(
+                        "价格必须大于0".to_string(),
+                    ));
+                }
+                item_to_update.price = price;
+            }
+            "currency" => {
+                item_to_update.currency = value;
+            }
+            _ => {
+                return Err(rusqlite::Error::InvalidParameterName(
+                    format!("不支持的字段: {}", field)
+                ));
+            }
         }
 
         self.service.update_item(item_to_update)?;
@@ -223,6 +228,30 @@ impl CliHandler {
     fn handle_delete(&self, id: i64) -> Result<()> {
         self.service.delete_item(id)?;
         println!("物品删除成功！");
+        Ok(())
+    }
+
+    fn handle_discard(&self, id: i64, discard_date: String) -> Result<()> {
+        let items = self.service.get_all_items()?;
+        let mut item_to_update = items
+            .into_iter()
+            .find(|item| item.id == Some(id))
+            .ok_or_else(|| rusqlite::Error::InvalidParameterName("物品不存在".to_string()))?;
+
+        let parsed_discard_date = NaiveDate::parse_from_str(&discard_date, "%Y-%m-%d")
+            .map_err(|e| rusqlite::Error::InvalidParameterName(e.to_string()))?;
+
+        // 验证弃用日期不能早于起始日期
+        if parsed_discard_date < item_to_update.start_date {
+            return Err(rusqlite::Error::InvalidParameterName(
+                "弃用日期不能早于起始日期".to_string(),
+            ));
+        }
+
+        item_to_update.discard_date = Some(parsed_discard_date);
+        self.service.update_item(item_to_update)?;
+
+        println!("物品弃用成功！");
         Ok(())
     }
 }
@@ -388,17 +417,21 @@ mod tests {
         let items = handler.service.get_all_items()?;
         let id = items[0].id.unwrap();
 
-        let update_command = Commands::Update {
+        // 更新名称
+        let update_name_command = Commands::Update {
+            field: "name".to_string(),
             id,
-            name: Some("Updated Item".to_string()),
-            start_date: None,
-            discard_date: None,
-            price: Some(2000.0),
-            currency: None,
+            value: "Updated Item".to_string(),
         };
+        handler.handle_command(update_name_command)?;
 
-        // 应该成功执行
-        handler.handle_command(update_command)?;
+        // 更新价格
+        let update_price_command = Commands::Update {
+            field: "price".to_string(),
+            id,
+            value: "2000.0".to_string(),
+        };
+        handler.handle_command(update_price_command)?;
 
         // 验证物品已更新
         let items = handler.service.get_all_items()?;
@@ -406,6 +439,99 @@ mod tests {
         assert_eq!(items[0].price, 2000.0);
 
         Ok(())
+    }
+
+    #[test]
+    fn test_handle_update_invalid_field() {
+        let db = Database::new_in_memory().unwrap();
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        // 先添加一个物品
+        let add_command = Commands::Add {
+            name: "Test Item".to_string(),
+            start_date: "2020-01-01".to_string(),
+            price: 1000.0,
+            currency: "CNY".to_string(),
+            discard_date: None,
+        };
+        handler.handle_command(add_command).unwrap();
+
+        // 获取物品 ID
+        let items = handler.service.get_all_items().unwrap();
+        let id = items[0].id.unwrap();
+
+        let update_command = Commands::Update {
+            field: "invalid_field".to_string(),
+            id,
+            value: "some value".to_string(),
+        };
+
+        // 应该失败，因为字段不存在
+        let result = handler.handle_command(update_command);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_update_invalid_price() {
+        let db = Database::new_in_memory().unwrap();
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        // 先添加一个物品
+        let add_command = Commands::Add {
+            name: "Test Item".to_string(),
+            start_date: "2020-01-01".to_string(),
+            price: 1000.0,
+            currency: "CNY".to_string(),
+            discard_date: None,
+        };
+        handler.handle_command(add_command).unwrap();
+
+        // 获取物品 ID
+        let items = handler.service.get_all_items().unwrap();
+        let id = items[0].id.unwrap();
+
+        let update_command = Commands::Update {
+            field: "price".to_string(),
+            id,
+            value: "-100".to_string(), // 无效价格
+        };
+
+        // 应该失败，因为价格必须大于0
+        let result = handler.handle_command(update_command);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_update_discard_date_earlier_than_start() {
+        let db = Database::new_in_memory().unwrap();
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        // 先添加一个物品
+        let add_command = Commands::Add {
+            name: "Test Item".to_string(),
+            start_date: "2020-01-01".to_string(),
+            price: 1000.0,
+            currency: "CNY".to_string(),
+            discard_date: None,
+        };
+        handler.handle_command(add_command).unwrap();
+
+        // 获取物品 ID
+        let items = handler.service.get_all_items().unwrap();
+        let id = items[0].id.unwrap();
+
+        let update_command = Commands::Update {
+            field: "discard_date".to_string(),
+            id,
+            value: "2019-12-31".to_string(), // 早于起始日期
+        };
+
+        // 应该失败，因为弃用日期不能早于起始日期
+        let result = handler.handle_command(update_command);
+        assert!(result.is_err());
     }
 
     #[test]
@@ -424,6 +550,117 @@ mod tests {
 
         // 应该失败，因为日期格式无效
         let result = handler.handle_command(command);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_discard() -> Result<()> {
+        let db = Database::new_in_memory()?;
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        // 先添加一个物品
+        let add_command = Commands::Add {
+            name: "Test Item".to_string(),
+            start_date: "2020-01-01".to_string(),
+            price: 1000.0,
+            currency: "CNY".to_string(),
+            discard_date: None,
+        };
+        handler.handle_command(add_command)?;
+
+        // 获取物品 ID
+        let items = handler.service.get_all_items()?;
+        let id = items[0].id.unwrap();
+
+        let discard_command = Commands::Discard {
+            id,
+            discard_date: "2022-01-01".to_string(),
+        };
+
+        // 应该成功执行
+        handler.handle_command(discard_command)?;
+
+        // 验证物品已弃用
+        let items = handler.service.get_all_items()?;
+        assert_eq!(items[0].discard_date, Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()));
+
+        Ok(())
+    }
+
+    #[test]
+    fn test_handle_discard_invalid_date() {
+        let db = Database::new_in_memory().unwrap();
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        // 先添加一个物品
+        let add_command = Commands::Add {
+            name: "Test Item".to_string(),
+            start_date: "2020-01-01".to_string(),
+            price: 1000.0,
+            currency: "CNY".to_string(),
+            discard_date: None,
+        };
+        handler.handle_command(add_command).unwrap();
+
+        // 获取物品 ID
+        let items = handler.service.get_all_items().unwrap();
+        let id = items[0].id.unwrap();
+
+        let discard_command = Commands::Discard {
+            id,
+            discard_date: "invalid-date".to_string(), // 无效日期
+        };
+
+        // 应该失败，因为日期格式无效
+        let result = handler.handle_command(discard_command);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_discard_earlier_than_start_date() {
+        let db = Database::new_in_memory().unwrap();
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        // 先添加一个物品
+        let add_command = Commands::Add {
+            name: "Test Item".to_string(),
+            start_date: "2020-01-01".to_string(),
+            price: 1000.0,
+            currency: "CNY".to_string(),
+            discard_date: None,
+        };
+        handler.handle_command(add_command).unwrap();
+
+        // 获取物品 ID
+        let items = handler.service.get_all_items().unwrap();
+        let id = items[0].id.unwrap();
+
+        let discard_command = Commands::Discard {
+            id,
+            discard_date: "2019-12-31".to_string(), // 早于起始日期
+        };
+
+        // 应该失败，因为弃用日期早于起始日期
+        let result = handler.handle_command(discard_command);
+        assert!(result.is_err());
+    }
+
+    #[test]
+    fn test_handle_discard_nonexistent_item() {
+        let db = Database::new_in_memory().unwrap();
+        let service = ItemService::new_with_db(db);
+        let handler = CliHandler::new_with_service(service);
+
+        let discard_command = Commands::Discard {
+            id: 999, // 不存在的物品 ID
+            discard_date: "2022-01-01".to_string(),
+        };
+
+        // 应该失败，因为物品不存在
+        let result = handler.handle_command(discard_command);
         assert!(result.is_err());
     }
 }
