@@ -1,6 +1,5 @@
 use crate::models::Item;
 use chrono::NaiveDate;
-use dirs;
 use rusqlite::{Connection, Result, params};
 use std::path::PathBuf;
 

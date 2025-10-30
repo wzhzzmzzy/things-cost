@@ -22,9 +22,7 @@ extended-description = """
 一个简单的命令行工具，用于统计物品的日均消费成本。
 可以跟踪物品的购买日期、价格和使用时长，计算每日平均成本。
 """
-assets = [
-    ["target/release/things-cost", "/usr/bin/", "755"],
-]
+assets = [["target/release/things-cost", "/usr/bin/", "755"]]
 
 [package.metadata.msi]
 license = "LICENSE-MIT"
@@ -37,7 +35,7 @@ upgrade-guid = "YOUR-GUID-HERE"
 pkg-url = "https://github.com/your-username/things-cost/releases/download/v{{version}}/things-cost-v{{version}}-{{target}}.tar.gz"
 
 [dependencies]
-rusqlite = "0.31"
+rusqlite = { version = "0.31", features = ["bundled"] }
 chrono = { version = "0.4", features = ["serde"] }
 clap = { version = "4.4", features = ["derive"] }
 tabled = "0.14"
