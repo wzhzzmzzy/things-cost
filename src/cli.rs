@@ -102,7 +102,11 @@ impl CliHandler {
             Commands::List => self.handle_list(),
             Commands::Update { field, id, value } => self.handle_update(field, id, value),
             Commands::Delete { id } => self.handle_delete(id),
-            Commands::Discard { id, discard_date, selling_price } => self.handle_discard(id, discard_date, selling_price),
+            Commands::Discard {
+                id,
+                discard_date,
+                selling_price,
+            } => self.handle_discard(id, discard_date, selling_price),
         }
     }
 
@@ -160,9 +164,13 @@ impl CliHandler {
                 let price_display = if let Some(selling_price) = summary.item.selling_price {
                     if selling_price > 0.0 {
                         let effective_price = summary.item.price - selling_price;
-                        format!("{:.2} {} (购入: {:.2}, 卖出: {:.2})",
-                               effective_price, summary.item.currency,
-                               summary.item.price, selling_price)
+                        format!(
+                            "{:.2} {} (购入: {:.2}, 卖出: {:.2})",
+                            effective_price,
+                            summary.item.currency,
+                            summary.item.price,
+                            selling_price
+                        )
                     } else {
                         // 卖出价格为0或负数时，显示原始价格
                         format!("{:.2} {}", summary.item.price, summary.item.currency)
@@ -257,9 +265,10 @@ impl CliHandler {
                 }
             }
             _ => {
-                return Err(rusqlite::Error::InvalidParameterName(
-                    format!("不支持的字段: {}", field)
-                ));
+                return Err(rusqlite::Error::InvalidParameterName(format!(
+                    "不支持的字段: {}",
+                    field
+                )));
             }
         }
 
@@ -274,7 +283,12 @@ impl CliHandler {
         Ok(())
     }
 
-    fn handle_discard(&self, id: i64, discard_date: String, selling_price: Option<f64>) -> Result<()> {
+    fn handle_discard(
+        &self,
+        id: i64,
+        discard_date: String,
+        selling_price: Option<f64>,
+    ) -> Result<()> {
         let items = self.service.get_all_items()?;
         let mut item_to_update = items
             .into_iter()
@@ -649,7 +663,10 @@ mod tests {
 
         // 验证物品已弃用
         let items = handler.service.get_all_items()?;
-        assert_eq!(items[0].discard_date, Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()));
+        assert_eq!(
+            items[0].discard_date,
+            Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap())
+        );
 
         Ok(())
     }
@@ -764,7 +781,10 @@ mod tests {
 
         // 验证物品已弃用且卖出价格已设置
         let items = handler.service.get_all_items()?;
-        assert_eq!(items[0].discard_date, Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap()));
+        assert_eq!(
+            items[0].discard_date,
+            Some(NaiveDate::from_ymd_opt(2022, 1, 1).unwrap())
+        );
         assert_eq!(items[0].selling_price, Some(500.0));
 
         Ok(())

@@ -40,21 +40,19 @@ impl Database {
 
     fn get_current_version(conn: &Connection) -> Result<i32> {
         // 检查版本表是否存在且包含数据
-        let version_exists: bool = conn
-            .query_row(
-                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='db_version'",
-                [],
-                |row| row.get(0),
-            )?;
+        let version_exists: bool = conn.query_row(
+            "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='db_version'",
+            [],
+            |row| row.get(0),
+        )?;
 
         if !version_exists {
             // 检查 items 表是否存在来判断是否是旧数据库
-            let items_exists: bool = conn
-                .query_row(
-                    "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='items'",
-                    [],
-                    |row| row.get(0),
-                )?;
+            let items_exists: bool = conn.query_row(
+                "SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='items'",
+                [],
+                |row| row.get(0),
+            )?;
 
             if items_exists {
                 // items 表存在但没有版本表，说明是版本1的数据库
@@ -65,8 +63,8 @@ impl Database {
             }
         }
 
-        let version_count: i32 = conn
-            .query_row("SELECT COUNT(*) FROM db_version", [], |row| row.get(0))?;
+        let version_count: i32 =
+            conn.query_row("SELECT COUNT(*) FROM db_version", [], |row| row.get(0))?;
 
         if version_count == 0 {
             // 版本表存在但没有版本记录，说明是旧数据库
@@ -117,12 +115,11 @@ impl Database {
 
     fn migrate_to_version_2(conn: &Connection) -> Result<()> {
         // 检查 selling_price 列是否存在
-        let column_exists: bool = conn
-            .query_row(
-                "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name='selling_price'",
-                [],
-                |row| row.get(0),
-            )?;
+        let column_exists: bool = conn.query_row(
+            "SELECT COUNT(*) FROM pragma_table_info('items') WHERE name='selling_price'",
+            [],
+            |row| row.get(0),
+        )?;
 
         if !column_exists {
             // 添加 selling_price 列

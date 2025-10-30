@@ -18,7 +18,7 @@
 
 ```bash
 # 克隆仓库
-git clone https://github.com/your-username/things-cost.git
+git clone https://github.com/wzhzzmzzy/things-cost.git
 cd things-cost
 
 # 构建并安装
@@ -49,12 +49,6 @@ sudo mv things-cost /usr/local/bin/
 
 1. 从 Releases 页面下载 `things-cost-x86_64-pc-windows-msvc.zip`
 2. 解压并将 `things-cost.exe` 添加到 PATH 环境变量
-
-### 使用 cargo-binstall
-
-```bash
-cargo binstall things-cost
-```
 
 ## 使用方法
 
@@ -159,4 +153,3 @@ cargo run -- --help
 - [Apache License 2.0](LICENSE-APACHE)
 
 您可以选择其中任意一个许可证。
-
